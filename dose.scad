@@ -1,291 +1,398 @@
-/* Geometry */
-// The inner width in mm
-Breite_Dose = 84.2;
-// The inner height in mm
-Hoehe_Dose = 74;
-// the tickness oth the cans walls
-Wanddicke = 2;
-// the thickness of the lids walls
-Wanddicke_Deckel = 2;
-// the thickness of the floor
-Bodendicke = 3;
-// the height of an optional rim
-Hoehe_Rand = 3;
-// the diameter of the optional rim
-Durchmesser_Rand = 85.4;
-// the height of the thread
-Gewindehoehe = 10;
-// turns of thread
-thread_turns = 4;
-// Cut away a bit of the thread to make it blunt and easier going. How much (in percent) shall be cut away?
-cut_thread_percent = 10;
-// true makes the base for the thread of the can wider to fit the lid
-smooth_sides = 1; // [0:no, 1:yes]
+/*
+ * Parametric Round Container with Threaded Cap
+ * Dose Library
+ *
+ * Based on "Customizable Round Box with Threaded Lid"
+ * by FaberUnserzeit (Philipp Klostermann)
+ * https://www.thingiverse.com/thing:1648580
+ *
+ * The screw_extrude algorithm is by Philipp Klostermann
+ * http://en.openscad.philipp-klostermann.de/
+ *
+ * License: Creative Commons - Attribution (CC BY)
+ *
+ * Adapted into a reusable library — original geometry preserved.
+ *
+ * Usage:
+ *   use <Dose library.scad>
+ *
+ *   dose(inner_diameter=30, inner_height=50) {
+ *       dose_can();
+ *       translate([50, 0, 0])
+ *       dose_cap();
+ *   }
+ *
+ *   // Or use dose_part() for layout and section view options:
+ *   dose(inner_diameter=30, inner_height=50)
+ *       dose_part("all", layout=true, section=false);
+ */
 
-/* [Printing] */
-// Only set this to no if you want to see both parts together
-layout_to_print = 1; // [0:no, 1:yes]
-// Only set this to true if you want to have a sectioned view
-view_sectioned = 0; // [0:no, 1:yes]
-// It is recommended to print the parts seperately. Which part do you want to print
-part_to_print = 2; // [0:all, 1:can, 2:cap]
-// Distance between parts
-print_distance = 5;
+module __end_customizer_options__() { }
 
-/* Resolution and Tolerance */
-// resolution of roundings in steps/360°
-fn = 128; // [8,16,32,64,128,256]
-// space between moving Parts, printer dependent
-wackel = 0.5;
+/*
+ * Main setup module
+ *
+ * Use this module to configure container sizing before rendering a part.
+ *
+ * Arguments:
+ *  - inner_diameter:      Inner diameter of the container in mm
+ *  - inner_height:        Inner height of the container in mm
+ *  - wall_thickness:      Thickness of the container walls
+ *  - cap_wall_thickness:  Thickness of the cap walls
+ *  - floor_thickness:     Thickness of the floor
+ *  - rim_height:          Height of an optional interior rim near the top
+ *  - rim_diameter:        Diameter of the optional interior rim
+ *  - thread_height:       Total height of the thread section
+ *  - thread_turns:        Number of thread turns
+ *  - cut_thread_percent:  How much (percent) to blunt the thread tips for easier assembly
+ *  - smooth_sides:        Widen the thread base to smoothly match the cap
+ *  - fn:                  Circle resolution in steps per 360°
+ *  - fit_tolerance:       Gap between mating parts (printer dependent)
+ *
+ * Example:
+ *
+ *      dose(inner_diameter=30, inner_height=50) {
+ *          // Render can
+ *          dose_can();
+ *
+ *          // Render cap, placed beside the can for printing
+ *          translate([50, 0, 0])
+ *          dose_cap();
+ *      }
+ */
+module dose(
+    inner_diameter    = 13,
+    inner_height      = 122,
+    wall_thickness    = 2,
+    cap_wall_thickness = 2,
+    floor_thickness   = 3,
+    rim_height        = 3,
+    rim_diameter      = 85.4,
+    thread_height     = 10,
+    thread_turns      = 4,
+    cut_thread_percent = 10,
+    smooth_sides      = true,
+    fn                = 128,
+    fit_tolerance     = 0.5
+) {
+    $d_inner_diameter  = inner_diameter;
+    $d_inner_height    = inner_height;
+    $d_wall            = wall_thickness;
+    $d_cap_wall        = cap_wall_thickness;
+    $d_floor           = floor_thickness;
+    $d_rim_height      = rim_height;
+    $d_rim_diameter    = rim_diameter;
+    $d_thread_height   = thread_height;
+    $d_thread_turns    = thread_turns;
+    $d_cut_pct         = cut_thread_percent;
+    $d_smooth_sides    = smooth_sides;
+    $d_fn              = fn;
+    $d_fit             = fit_tolerance;
 
-/* [Hidden] */
-tol = 0.05;
-thread_thicknes = ((Gewindehoehe/thread_turns)/2); // *(100-cut_tread_percent)/100;
-Windungshoehe = Gewindehoehe / thread_turns;
+    // Derived thread geometry
+    $d_thread_thick = (thread_height / thread_turns) / 2;
+    $d_coil_height  = thread_height / thread_turns;
+    $d_cut_mid      = (thread_height / thread_turns / 2) * cut_thread_percent / 100;
+    $d_cut_width    = (thread_height / thread_turns / 2) * (100 - cut_thread_percent) / 100;
 
-cut_mittelhoehe = thread_thicknes*cut_thread_percent/100;
-cut_breite = thread_thicknes*(100-cut_thread_percent)/100;
-
-difference()
-{
-	Alles();
-	if (view_sectioned!=0)
-	{
-		rotate([0,0,180])
-		translate([-Breite_Dose,0,-tol])
-			cube([Breite_Dose*2,Breite_Dose,Hoehe_Dose+Bodendicke+Bodendicke+tol*2+wackel]);
-	}
+    children();
 }
 
-module Alles()
-{
-	if (part_to_print == 0 || part_to_print == 1)
-	{
-		Dose();	
-	}
-	if ((part_to_print == 0) || (part_to_print == 2))
-	{
-		translate([
-					0,
-					(layout_to_print!=0) && (part_to_print == 0) ?
-						-(Breite_Dose+thread_thicknes*2+Wanddicke*2+Wanddicke_Deckel*2+print_distance)
-						: 0,
-					(layout_to_print!=0) ?
-						0
-						: Hoehe_Dose + Bodendicke * 2 + wackel/2
-					])
-			rotate([0,
-					(layout_to_print!=0) ? 
-						0
-						: 180,
-					-0])
-				Deckel();
-	}
+// Public part modules
+
+module dose_can() {
+    _dose_can();
 }
 
-module Dose()
-{
-	difference()
-	{
-		union()
-		{
-			cylinder(r = Breite_Dose / 2 + Wanddicke, h = Hoehe_Dose + Bodendicke, $fn=fn);
-			translate([0,0,Hoehe_Dose + Bodendicke - Gewindehoehe - Windungshoehe/2])
-				screw_extrude
-				(
-					P = (cut_thread_percent > 0) 
-					?
-						[
-							[-tol,thread_thicknes-tol],
-							[cut_breite,cut_mittelhoehe],
-							[cut_breite,-cut_mittelhoehe],
-							[-tol,-(thread_thicknes-tol)]	
-						]
-					:
-						[
-							[-tol,thread_thicknes-tol],
-							[thread_thicknes,0],
-							[-tol,-(thread_thicknes-tol)]	
-						],
-					r = Breite_Dose / 2 + Wanddicke,
-					p = Windungshoehe,
-					d = 360 * (thread_turns + 0),
-					sr = 0,
-					er = 45,
-					fn = fn
-				);
-
-			translate([0,0,Hoehe_Dose + Bodendicke - Gewindehoehe - Windungshoehe])
-			{
-				cylinder(r=Breite_Dose/2+thread_thicknes+Wanddicke + ((smooth_sides!=0) ? Wanddicke_Deckel : 0), h=Windungshoehe, $fn=fn);
-				translate([0,0,-Wanddicke*2])
-					SideSupport(Breite_Dose/2+Wanddicke, 
-								thread_thicknes + ((smooth_sides!=0) ? Wanddicke_Deckel : 0), 
-								Wanddicke*2 );
-			}
-		}
-		// Innenraum:
-		translate([0,0,Bodendicke])
-			cylinder(r=Breite_Dose / 2, h=Hoehe_Dose + tol, $fn=fn);
-		// Platz für den Dosenrand:
-		translate([0,0,Bodendicke + Hoehe_Dose - Hoehe_Rand])
-			cylinder(r = Durchmesser_Rand/2, h=Hoehe_Rand + tol, $fn=fn);
-		// Überstehendes Gewinde abschneiden:
-		translate([0,0,Hoehe_Dose+Bodendicke-tol])
-			cylinder(r=Breite_Dose+Wanddicke*2+thread_thicknes*2+tol, h=Windungshoehe*2+tol);
-		/*
-		*/
-	}
+module dose_cap() {
+    _dose_cap();
 }
 
-module Deckel()
-{
-	difference()
-	{
-		cylinder(r = Breite_Dose/2 + thread_thicknes + Wanddicke+Wanddicke_Deckel, h = Gewindehoehe + Bodendicke, $fn=fn);
-		translate([0,0,Bodendicke])
-			cylinder(r=Breite_Dose / 2 + Wanddicke + thread_thicknes + wackel, h= Gewindehoehe + tol, $fn=fn);
-	}
-	difference()
-	{
-		translate([0,0, Bodendicke - Windungshoehe/2])
-		{	
-			screw_extrude
-			(
-				P = (cut_thread_percent > 0) 
-				?
-					[
-						[tol*2,-(thread_thicknes-tol)],
-						[-cut_breite,-cut_mittelhoehe],
-						[-cut_breite, cut_mittelhoehe],
-						[tol*2,thread_thicknes-tol]
-					]
-				:
-					[
-						[tol,-(thread_thicknes-tol)],
-						[-thread_thicknes,0],
-						[tol,thread_thicknes-tol]
-					]
-				,
-				r = Breite_Dose / 2 + Wanddicke + thread_thicknes + wackel,
-				p = Windungshoehe,
-				d = 360 * (thread_turns + 0),
-				sr = 0,
-				er = 45,
-				fn = fn
-			);
-		}
-		translate([0,0,Gewindehoehe + Bodendicke])
-			cylinder(r=Breite_Dose+Wanddicke*2+thread_thicknes+tol, h=Windungshoehe+tol);
-		rotate([180,0,0])
-			translate([0,0,-tol])
-			cylinder(r=Breite_Dose+Wanddicke*2+thread_thicknes+tol, h=Windungshoehe+tol);
-	}
+/*
+ * Render a part by name with optional layout and section view
+ *
+ * Arguments:
+ *  - part:           Which part(s) to render: "all", "can", or "cap"
+ *  - layout:         If true, lay parts out side by side for printing
+ *  - section:        If true, show a cross-section view
+ *  - print_distance: Distance between parts when laid out side by side
+ *
+ * Example:
+ *
+ *      dose(inner_diameter=30, inner_height=50)
+ *          dose_part("all", layout=true);
+ */
+module dose_part(
+    part           = "all",
+    layout         = true,
+    section        = false,
+    print_distance = 5
+) {
+    difference() {
+        _dose_layout(part, layout, print_distance);
+        if (section) {
+            rotate([0, 0, 180])
+            translate([-$d_inner_diameter, 0, -0.05])
+            cube([
+                $d_inner_diameter * 2,
+                $d_inner_diameter,
+                $d_inner_height + $d_floor * 2 + $d_fit + 0.1
+            ]);
+        }
+    }
 }
 
-module SideSupport(r,w,h)
-{
-	rotate_extrude($fn=fn)
-		translate([r,0,0])
-						polygon([[0,0],
-							[w,h],
-							[0,h]]);
-		
+// Internal modules
+
+module _dose_layout(part, layout, print_distance) {
+    if (part == "all" || part == "can") {
+        _dose_can();
+    }
+    if (part == "all" || part == "cap") {
+        translate([
+            0,
+            (layout && part == "all")
+                ? -(
+                    $d_inner_diameter
+                    + $d_thread_thick * 2
+                    + $d_wall * 2
+                    + $d_cap_wall * 2
+                    + print_distance
+                  )
+                : 0,
+            layout
+                ? 0
+                : $d_inner_height + $d_floor * 2 + $d_fit / 2
+        ])
+        rotate([0, layout ? 0 : 180, 0])
+        _dose_cap();
+    }
+}
+
+module _dose_can() {
+    tol = 0.05;
+
+    difference() {
+        union() {
+            cylinder(
+                r  = $d_inner_diameter / 2 + $d_wall,
+                h  = $d_inner_height + $d_floor,
+                $fn = $d_fn
+            );
+
+            // Exterior thread
+            translate([0, 0,
+                $d_inner_height + $d_floor - $d_thread_height - $d_coil_height / 2
+            ])
+            _dose_screw_extrude(
+                P  = ($d_cut_pct > 0)
+                    ? [
+                        [-tol,          $d_thread_thick - tol],
+                        [$d_cut_width,  $d_cut_mid           ],
+                        [$d_cut_width, -$d_cut_mid           ],
+                        [-tol,         -($d_thread_thick - tol)]
+                      ]
+                    : [
+                        [-tol,          $d_thread_thick - tol],
+                        [$d_thread_thick, 0                  ],
+                        [-tol,         -($d_thread_thick - tol)]
+                      ],
+                r  = $d_inner_diameter / 2 + $d_wall,
+                p  = $d_coil_height,
+                d  = 360 * $d_thread_turns,
+                sr = 0,
+                er = 45,
+                fn = $d_fn
+            );
+
+            // Thread base collar and support chamfer
+            translate([0, 0,
+                $d_inner_height + $d_floor - $d_thread_height - $d_coil_height
+            ]) {
+                cylinder(
+                    r  = $d_inner_diameter / 2
+                         + $d_thread_thick
+                         + $d_wall
+                         + ($d_smooth_sides ? $d_cap_wall : 0),
+                    h  = $d_coil_height,
+                    $fn = $d_fn
+                );
+                translate([0, 0, -$d_wall * 2])
+                _dose_side_support(
+                    $d_inner_diameter / 2 + $d_wall,
+                    $d_thread_thick + ($d_smooth_sides ? $d_cap_wall : 0),
+                    $d_wall * 2
+                );
+            }
+        }
+
+        // Interior hollow
+        translate([0, 0, $d_floor])
+        cylinder(
+            r   = $d_inner_diameter / 2,
+            h   = $d_inner_height + tol,
+            $fn = $d_fn
+        );
+
+        // Interior rim clearance
+        translate([0, 0, $d_floor + $d_inner_height - $d_rim_height])
+        cylinder(
+            r   = $d_rim_diameter / 2,
+            h   = $d_rim_height + tol,
+            $fn = $d_fn
+        );
+
+        // Trim thread above top face
+        translate([0, 0, $d_inner_height + $d_floor - tol])
+        cylinder(
+            r = $d_inner_diameter + $d_wall * 2 + $d_thread_thick * 2 + tol,
+            h = $d_coil_height * 2 + tol
+        );
+    }
+}
+
+module _dose_cap() {
+    tol = 0.05;
+
+    // Cap body with interior thread pocket
+    difference() {
+        cylinder(
+            r  = $d_inner_diameter / 2
+                 + $d_thread_thick
+                 + $d_wall
+                 + $d_cap_wall,
+            h  = $d_thread_height + $d_floor,
+            $fn = $d_fn
+        );
+        translate([0, 0, $d_floor])
+        cylinder(
+            r   = $d_inner_diameter / 2 + $d_wall + $d_thread_thick + $d_fit,
+            h   = $d_thread_height + tol,
+            $fn = $d_fn
+        );
+    }
+
+    // Interior thread
+    difference() {
+        translate([0, 0, $d_floor - $d_coil_height / 2])
+        _dose_screw_extrude(
+            P  = ($d_cut_pct > 0)
+                ? [
+                    [tol * 2,          -($d_thread_thick - tol)],
+                    [-$d_cut_width,    -$d_cut_mid             ],
+                    [-$d_cut_width,     $d_cut_mid             ],
+                    [tol * 2,           $d_thread_thick - tol  ]
+                  ]
+                : [
+                    [tol,              -($d_thread_thick - tol)],
+                    [-$d_thread_thick,  0                      ],
+                    [tol,               $d_thread_thick - tol  ]
+                  ],
+            r  = $d_inner_diameter / 2 + $d_wall + $d_thread_thick + $d_fit,
+            p  = $d_coil_height,
+            d  = 360 * $d_thread_turns,
+            sr = 0,
+            er = 45,
+            fn = $d_fn
+        );
+
+        // Trim thread above open end
+        translate([0, 0, $d_thread_height + $d_floor])
+        cylinder(
+            r = $d_inner_diameter + $d_wall * 2 + $d_thread_thick + tol,
+            h = $d_coil_height + tol
+        );
+
+        // Trim thread below floor
+        rotate([180, 0, 0])
+        translate([0, 0, -tol])
+        cylinder(
+            r = $d_inner_diameter + $d_wall * 2 + $d_thread_thick + tol,
+            h = $d_coil_height + tol
+        );
+    }
+}
+
+module _dose_side_support(r, w, h) {
+    rotate_extrude($fn = $d_fn)
+    translate([r, 0, 0])
+    polygon([[0, 0], [w, h], [0, h]]);
 }
 
 /**
- * screw_extrude(P, r, p, d, sr, er, fn)
-	by Philipp Klostermann
-	
-	screw_rotate rotates polygon P 
-	with the radius r 
-	with increasing height by p mm per turn 
-	with a rotation angle of d degrees
-	with a starting-ramp of sr degrees length
-	with an ending-ramp of er degrees length
-	in fn steps per turn.
-	
-	the points of P must be defined in clockwise direction looking from the outside.
-	r must be bigger than the smallest negative X-coordinate in P.
-	sr+er <= d
-**/
+ * _dose_screw_extrude(P, r, p, d, sr, er, fn)
+ * Based on screw_extrude by Philipp Klostermann
+ *
+ * Sweeps polygon P along a helix:
+ *  P  - cross-section polygon (points in clockwise order from outside)
+ *  r  - helix radius (must exceed the most negative X in P)
+ *  p  - pitch: mm of height per full turn
+ *  d  - total rotation angle in degrees
+ *  sr - ramp-in length in degrees
+ *  er - ramp-out length in degrees
+ *  fn - steps per 360°
+ */
+module _dose_screw_extrude(P, r, p, d, sr, er, fn) {
+    anz_pt       = len(P);
+    steps        = round(d * fn / 360);
+    mm_per_deg   = p / 360;
+    echo("steps: ", steps, " mm_per_deg: ", mm_per_deg);
 
-module screw_extrude(P, r, p, d, sr, er, fn)
-{
-	anz_pt = len(P);
-	steps = round(d * fn / 360);
-	mm_per_deg = p / 360;
-	points_per_side = len(P);
-	echo ("steps: ", steps, " mm_per_deg: ", mm_per_deg);
-	
-	VL = [ [ r, 0, 0] ];
-	PL = [ for (i=[0:1:anz_pt-1]) [ 0, 1+i,1+((i+1)%anz_pt)] ];
-	V = [
-		for(n=[1:1:steps-1])
-			let 
-			(
-				w1 = n * d / steps,
-				h1 = mm_per_deg * w1,
-				s1 = sin(w1),
-				c1 = cos(w1),
-				faktor = (w1 < sr)
-				?
-					(w1 / sr)
-				:
-					(
-						(w1 > (d - er))
-						?
-							1 - ((w1-(d-er)) / er)
-						:
-							1
-					)
-			)
-			for (pt=P)
-			[
-				r * c1 + pt[0] * c1 * faktor, 
-				r * s1 + pt[0] * s1 * faktor, 
-				h1 + pt[1] * faktor 
-			]
-	];
-	P1 = [
-		for(n=[0:1:steps-3])
-			for (i=[0:1:anz_pt-1]) 
-			[
-				1+(n*anz_pt)+i,
-				1+(n*anz_pt)+anz_pt+i,
-				1+(n*anz_pt)+anz_pt+(i+1)%anz_pt
-			] 
-			
-		
-	];
-	P2 = 
-	[
-		for(n=[0:1:steps-3])
-			 for (i=[0:1:anz_pt-1]) 
-				[
-					1+(n*anz_pt)+i,
-					1+(n*anz_pt)+anz_pt+(i+1)%anz_pt,
-					1+(n*anz_pt)+(i+1)%anz_pt,
-				] 
-			
-		
-	];
+    VL = [[r, 0, 0]];
+    PL = [for (i = [0:1:anz_pt - 1]) [0, 1 + i, 1 + ((i + 1) % anz_pt)]];
 
-	VR = [ [ r * cos(d), r * sin(d), mm_per_deg * d ] ];
-	PR = 
-	[
-		for (i=[0:1:anz_pt-1]) 
-		[
-			1+(steps-1)*anz_pt,
-			1+(steps-2)*anz_pt+((i+1)%anz_pt),
-			1+(steps-2)*anz_pt+i
-		]
-	];
-			
-	VG=concat(VL,V,VR);
-	PG=concat(PL,P1,P2,PR);
-	convex = round(d/45)+4;
-	echo ("convexity = round(d/180)+4 = ", convex);
-	polyhedron(VG,PG,convexity = convex);
+    V = [
+        for (n = [1:1:steps - 1])
+        let (
+            w1     = n * d / steps,
+            h1     = mm_per_deg * w1,
+            s1     = sin(w1),
+            c1     = cos(w1),
+            faktor = (w1 < sr)
+                ? (w1 / sr)
+                : ((w1 > (d - er))
+                    ? 1 - ((w1 - (d - er)) / er)
+                    : 1)
+        )
+        for (pt = P)
+        [
+            r * c1 + pt[0] * c1 * faktor,
+            r * s1 + pt[0] * s1 * faktor,
+            h1 + pt[1] * faktor
+        ]
+    ];
+
+    P1 = [
+        for (n = [0:1:steps - 3])
+        for (i = [0:1:anz_pt - 1])
+        [
+            1 + (n * anz_pt) + i,
+            1 + (n * anz_pt) + anz_pt + i,
+            1 + (n * anz_pt) + anz_pt + (i + 1) % anz_pt
+        ]
+    ];
+
+    P2 = [
+        for (n = [0:1:steps - 3])
+        for (i = [0:1:anz_pt - 1])
+        [
+            1 + (n * anz_pt) + i,
+            1 + (n * anz_pt) + anz_pt + (i + 1) % anz_pt,
+            1 + (n * anz_pt) + (i + 1) % anz_pt
+        ]
+    ];
+
+    VR = [[r * cos(d), r * sin(d), mm_per_deg * d]];
+    PR = [
+        for (i = [0:1:anz_pt - 1])
+        [
+            1 + (steps - 1) * anz_pt,
+            1 + (steps - 2) * anz_pt + ((i + 1) % anz_pt),
+            1 + (steps - 2) * anz_pt + i
+        ]
+    ];
+
+    convex = round(d / 45) + 4;
+    echo("convexity = round(d/45)+4 = ", convex);
+    polyhedron(concat(VL, V, VR), concat(PL, P1, P2, PR), convexity = convex);
 }
-
