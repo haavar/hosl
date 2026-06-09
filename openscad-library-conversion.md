@@ -232,6 +232,25 @@ dose(inner_diameter=20, inner_height=80)
 
 ---
 
+## `use` vs `include`
+
+Most libraries should be imported with `use <library.scad>`. This imports module and function definitions without executing any top-level code.
+
+However, if a library contains `import()` calls (for SVG or STL files), use `include <library.scad>` instead. OpenSCAD resolves `import()` paths relative to the file that *contains* the call. With `use`, that is the library file — so the SVG files would need to live alongside the library. With `include`, the library code is inlined into the project file, so `import()` paths resolve relative to the project file, which is where the assets live.
+
+```scad
+// For libraries with import() calls (e.g. SVG-based dice):
+include <dice.scad>
+
+// For libraries without import() calls:
+use <dose.scad>
+use <project-box.scad>
+```
+
+Note this in the library's header comment so users know which to use.
+
+---
+
 ## Finding attribution
 
 When converting a file that was downloaded from the internet:
@@ -256,4 +275,5 @@ License line format: `Creative Commons - Attribution (CC BY)`, `CC BY-SA`, `CC B
 - [ ] Public wrapper modules added
 - [ ] Header comment with title, author, URL, and license added
 - [ ] File produces no geometry when opened on its own (test in OpenSCAD)
-- [ ] A project file using `use <...>` works as expected
+- [ ] If the library uses `import()` (SVG/STL): documented as `include`, not `use`
+- [ ] A project file importing the library works as expected
