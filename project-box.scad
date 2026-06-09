@@ -1,186 +1,233 @@
-include <BOSL2/std.scad>
+/*
+ * Parametric Project Box Library
+ * hosl
+ *
+ * A two-part project enclosure with a friction-fit lid, corner screw posts,
+ * and heat-insert mounting.
+ *
+ * Requires BOSL2: https://github.com/BelfrySCAD/BOSL2
+ * Use `include <BOSL2/std.scad>` before importing this library.
+ *
+ * Usage:
+ *   include <BOSL2/std.scad>
+ *   use <project-box.scad>
+ *
+ *   projectBox(85, 125, 30) {
+ *       projectBoxTop();
+ *       translate([100, 0, 0])
+ *       projectBoxBottom();
+ *   }
+ */
 
-// todo: I think the issue is that the 
-        
-     //todo: old board was 2.9 / 5mm pegs check 
+module __end_customizer_options__() { }
 
+/*
+ * Main setup module
+ *
+ * Arguments:
+ *  - x, y:            Inner footprint dimensions in mm
+ *  - z:               Total inner height (body + lid combined)
+ *  - lid_z:           Height of the lid
+ *  - side_thickness:  Wall thickness on all four sides
+ *  - floor_thickness: Thickness of the top and bottom faces
+ *  - peg_d:           Diameter of the corner screw posts
+ *  - rounding:        Corner rounding radius
+ *  - lip_w:           Width of the friction-fit lip
+ *  - lip_h:           Height of the friction-fit lip
+ *  - lip_play:        Clearance between the lid lip and the body groove
+ *  - groove_depth:    Extra groove depth in the lid for easier fit
+ *  - heat_insert_d:   Diameter of the corner heat insert holes
+ *  - heat_insert_l:   Depth of the corner heat insert holes
+ *  - fn:              Circle resolution
+ *
+ * Example:
+ *
+ *      projectBox(85, 125, 30) {
+ *          projectBoxTop();
+ *
+ *          translate([100, 0, 0])
+ *          projectBoxBottom() {
+ *              // Mount a PCB on pegs
+ *              translate([0, -10, 0])
+ *              pegs(31.8, 44.5);
+ *          }
+ *      }
+ */
+module projectBox(
+    x,
+    y,
+    z,
+    lid_z          = 10,
+    side_thickness = 2.8,
+    floor_thickness = 3,
+    peg_d          = 6,
+    rounding       = 3,
+    lip_w          = 1.2,
+    lip_h          = 2,
+    lip_play       = 0.3,
+    groove_depth   = 0.8,
+    heat_insert_d  = 4.2,
+    heat_insert_l  = 7,
+    fn             = 100
+) {
+    $pb_x         = x;
+    $pb_y         = y;
+    $pb_z         = z;
+    $pb_lid_z     = lid_z;
+    $pb_side_t    = side_thickness;
+    $pb_floor_t   = floor_thickness;
+    $pb_peg_d     = peg_d;
+    $pb_rounding  = rounding;
+    $pb_lip_w     = lip_w;
+    $pb_lip_h     = lip_h;
+    $pb_lip_play  = lip_play;
+    $pb_groove_d  = groove_depth;
+    $pb_insert_d  = heat_insert_d;
+    $pb_insert_l  = heat_insert_l;
+    $fn           = fn;
+    children();
+}
 
-projectBox(85, 125, 30) { 
-    translate([120,0,0])
-    projectBoxTop();
-        xcopies(spacing=92+10/2) 
-            translate([0,0,-3]) 
-                difference() {
-                    cuboid([10,30,10], anchor=BOTTOM, rounding=3,  edges="Z");
-                    cube([3,10,20], anchor=BOTTOM);
-            }
-        
-        
-        difference() {
-            projectBoxBottom() {
-                // main board
-                translate([20,-27,0])
-                    pegs(31.8, 44.5, board=[38.1, 50.8, 10]);
-                    
-                // relay board
-                translate([20, 27,0])
-                    pegs(35.8, 44.5, board=[41, 50, 17]);
-                
-                //v-reg
-                // v-reg is m3, but could use m2
-                // m3 is d=4, l=6+slop
-                translate([-20, -25, 0])
-                    pegs(21, 46, board=[26, 51, 22.5]);
-                    
-                //stor sukkerbit
-                translate([-23, 30, 0]) {
-                    translate([0,0,2])ycopies(spacing=20, n=2) 
-                        difference() {
-                            cube([20, 12, 12], anchor=BOTTOM);
-                            translate([0,0,6]) cylinder(d=2.9, h=6.1);
-                            
-                        }
-                    translate([0,0,12]) %cube([20,37, 17], anchor=BOTTOM);
-                }
-                
-                
-                
-             
-            }
-             
-            // cable gland
-            #translate([0,65,4]) ycyl(d=12, h=10, anchor=BOTTOM); // cheked
-        }
-        
-};
-
-
-
-
-module pegs(x, y, d=5, h=6, holeD=2.9, holeLen=5, board=[]) {
-    if (len(board) == 3) {
-        translate([0,0,h])
-            %cube(board, anchor=BOTTOM);
-    }
-    
-    grid_copies(spacing=[x,y]) 
+/*
+ * Four mounting pegs for a PCB or circuit board.
+ *
+ * Places pegs at the four corners of a rectangle matching the board's
+ * hole spacing. Each peg has a blind hole for a self-tapping screw or
+ * press-fit pin. Works independently of projectBox.
+ *
+ * Arguments:
+ *  - x, y:     Center-to-center spacing of the mounting holes in mm
+ *  - d:        Outer diameter of each peg
+ *  - h:        Height of each peg
+ *  - hole_d:   Diameter of the screw hole
+ *  - hole_len: Depth of the screw hole
+ *  - board:    Optional [x, y, z] dimensions of the board. When provided,
+ *              a transparent preview of the board is shown above the pegs
+ *              in preview renders (not included in final output).
+ *
+ * Example:
+ *
+ *      // 38x51mm board (e.g. Arduino Nano), with board preview
+ *      pegs(31.8, 44.5, board=[38.1, 50.8, 10]);
+ */
+module pegs(x, y, d=5, h=6, hole_d=2.9, hole_len=5, board=[]) {
+    if (len(board) == 3)
+        translate([0, 0, h])
+            %cuboid(board, anchor=BOTTOM);
+    grid_copies(spacing=[x, y])
         difference() {
             cylinder(d=d, h=h);
-            translate([0,0,h-holeLen])
-                cylinder(d=holeD, h=holeLen);
+            translate([0, 0, h - hole_len])
+                cylinder(d=hole_d, h=hole_len);
         }
 }
 
-
-//todo: remove magic
-// todo: need to properly size and position peg. Peg position repends on case rounding
-// I think corner profile is a small inner cylinder (e.g the heat insert d), with walls wapping it
-// do I need to change the radius of the peg depending on how far from the corner it is?
-// should the radius of the corner match the screw?
-// I increased the corner radius for #2, should I go back?
-
-magicScrewOffset=1.4;
-$fn=100;
-
-module projectBox(x, y, z, lidZ=10, sideThickness=2.8, topBottomThickness=3, pegD=6, rounding=3, lipW=1.2, lipH=2, additionalGrooveDepth=0.8) {
-    $x=x;
-    $y=y;
-    $z=z;
-    $lidZ=lidZ;
-    $sideThickness=sideThickness;
-    $topBottomThickness=topBottomThickness;
-    $pegD=pegD;
-    $rounding=rounding;
-    $lipW=lipW;
-    $lipH=lipH;
-    $additionalGrooveDepth=additionalGrooveDepth;
-    children();
-}
+// Project box modules
 
 module projectBoxTop() {
-    top($x, $y, $lidZ, sideThickness=$sideThickness, topBottomThickness=$topBottomThickness, pegD=$pegD, rounding=$rounding, lipW=$lipW, lipH=$lipH, additionalGrooveDepth=$additionalGrooveDepth);
+    _pbox_top();
 }
 
+/*
+ * Renders the box body and passes children into its interior coordinate space.
+ * Use children to add interior features such as mounting pegs or brackets.
+ * Wrap in difference() to subtract cutouts such as cable glands.
+ *
+ * Example:
+ *
+ *      difference() {
+ *          projectBoxBottom() {
+ *              translate([0, -10, 0])
+ *              pegs(31.8, 44.5);
+ *          }
+ *          // Cable gland cutout
+ *          translate([0, 60, 4])
+ *          ycyl(d=12, h=10, anchor=BOTTOM);
+ *      }
+ */
 module projectBoxBottom() {
-    bottom($x, $y, $z-$lidZ, sideThickness=$sideThickness, topBottomThickness=$topBottomThickness, pegD=$pegD, rounding=$rounding, lipW=$lipW, lipH=$lipH);
+    _pbox_bottom();
     children();
 }
 
+// Internal modules
 
+module _pbox_top() {
+    // Screw center sits at the midpoint of the wall thickness
+    screw_offset = $pb_side_t / 2;
 
-module top(x, y, lidZ, sideThickness, topBottomThickness, pegD, rounding, lipW, lipH, additionalGrooveDepth) {        
     color("DarkCyan")
-        difference() {
-            part(x, y, lidZ, sideThickness, topBottomThickness, pegD, rounding);
-            // screws
-            xflip_copy() yflip_copy()
-                //translate([x/2, y/2, -topBottomThickness]) 
-                translate([x/2-magicScrewOffset, y/2-magicScrewOffset, -topBottomThickness]) 
-                    cyl(d=6, h=3, anchor=BOTTOM) position(TOP) cyl(d=3.5, h=lidZ+topBottomThickness, anchor=BOTTOM); // screw
-                           
-            // lip grove
-            translate([0, 0, lidZ-lipH-additionalGrooveDepth]) 
-                lip(x+sideThickness, y+sideThickness, lipH+additionalGrooveDepth, lipW, pegD=pegD, rounding=rounding);
-
-        }
-}
-
-
-
-module bottom(x, y, z, sideThickness, topBottomThickness, pegD, rounding, lipW, lipH) {
-    heatInsertD=4.2;
-    heatInsertL=7;
-    lipPlay=0.3;
-
-
-    color("steelblue") 
-        difference() {
-            part(x, y, z, sideThickness, topBottomThickness, pegD, rounding);
-            
-            // heat inserts
-            xflip_copy() yflip_copy()
-                translate([x/2-magicScrewOffset, y/2-magicScrewOffset, z-heatInsertL]) cylinder(d=heatInsertD, h=heatInsertL);
-         }   
-
-    // top lip
-    color("orange") translate([0, 0, z]) lip(x+sideThickness, y+sideThickness, lipH-lipPlay, lipW-lipPlay*2, pegD=pegD, rounding=rounding);
-}
-
-
-
-
-// this is the shared shape of the top and bottom
-module part(x, y, z, sideThickness, topBottomThickness, pegD, rounding) {
     difference() {
-        // main box
-        translate([0,0, -topBottomThickness])
-            cuboid([x+sideThickness*2, y+sideThickness*2, z+topBottomThickness], anchor=BOTTOM, rounding=6, edges="Z");
-        linear_extrude(z+0.01)
-            profile(x, y, pegD=pegD, rounding=rounding);         
-    } 
+        _pbox_part($pb_x, $pb_y, $pb_lid_z);
+        // Corner screw clearance holes
+        xflip_copy() yflip_copy()
+            translate([$pb_x/2 - screw_offset, $pb_y/2 - screw_offset, -$pb_floor_t])
+                cyl(d=6, h=3, anchor=BOTTOM)
+                    position(TOP) cyl(d=3.5, h=$pb_lid_z + $pb_floor_t, anchor=BOTTOM);
+        // Lid groove
+        translate([0, 0, $pb_lid_z - $pb_lip_h - $pb_groove_d])
+            _pbox_lip(
+                $pb_x + $pb_side_t,
+                $pb_y + $pb_side_t,
+                $pb_lip_h + $pb_groove_d,
+                $pb_lip_w
+            );
+    }
 }
 
+module _pbox_bottom() {
+    screw_offset = $pb_side_t / 2;
+    body_z = $pb_z - $pb_lid_z;
 
-// this is the profile without center fill. Will be used for gasket and positive+negative ridge
-module lip(x, y, z, w, pegD, rounding) {
-    echo(rounding=rounding);
+    color("steelblue")
+    difference() {
+        _pbox_part($pb_x, $pb_y, body_z);
+        // Corner heat insert holes
+        xflip_copy() yflip_copy()
+            translate([$pb_x/2 - screw_offset, $pb_y/2 - screw_offset, body_z - $pb_insert_l])
+                cylinder(d=$pb_insert_d, h=$pb_insert_l);
+    }
+
+    // Friction lip
+    color("orange")
+    translate([0, 0, body_z])
+        _pbox_lip(
+            $pb_x + $pb_side_t,
+            $pb_y + $pb_side_t,
+            $pb_lip_h - $pb_lip_play,
+            $pb_lip_w - $pb_lip_play * 2
+        );
+}
+
+module _pbox_part(x, y, z) {
+    difference() {
+        translate([0, 0, -$pb_floor_t])
+            cuboid(
+                [x + $pb_side_t*2, y + $pb_side_t*2, z + $pb_floor_t],
+                anchor=BOTTOM, rounding=6, edges="Z"
+            );
+        linear_extrude(z + 0.01)
+            _pbox_profile(x, y);
+    }
+}
+
+module _pbox_lip(x, y, z, w) {
     linear_extrude(z)
         difference() {
-            profile(x+w, y+w, pegD=pegD, rounding=rounding); 
-            profile(x-w, y-w, pegD=pegD, rounding=rounding);
+            _pbox_profile(x + w, y + w);
+            _pbox_profile(x - w, y - w);
         }
 }
 
-
-
-module profile(x, y, pegD, rounding) {
-    $fn=100;
+module _pbox_profile(x, y) {
     xflip_copy() yflip_copy()
-        offset(r=rounding)
+        offset(r=$pb_rounding)
             difference() {
-                square([x/2-rounding, y/2-rounding], anchor=LEFT+FRONT);
-                translate([x/2-rounding-pegD/2, y/2-rounding-pegD/2, 0])
-                    rect([pegD+rounding, pegD+rounding], rounding=[0,0,pegD/2+rounding,0]); // square peg in a round hole
+                square([x/2 - $pb_rounding, y/2 - $pb_rounding], anchor=LEFT+FRONT);
+                translate([x/2 - $pb_rounding - $pb_peg_d/2, y/2 - $pb_rounding - $pb_peg_d/2, 0])
+                    rect(
+                        [$pb_peg_d + $pb_rounding, $pb_peg_d + $pb_rounding],
+                        rounding=[0, 0, $pb_peg_d/2 + $pb_rounding, 0]
+                    );
             }
-
 }
