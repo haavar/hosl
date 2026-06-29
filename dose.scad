@@ -46,6 +46,9 @@ module __end_customizer_options__() { }
  *  - thread_turns:        Number of thread turns
  *  - cut_thread_percent:  How much (percent) to blunt the thread tips for easier assembly
  *  - smooth_sides:        Widen the thread base to smoothly match the cap
+ *  - corner_radius:       Fillet radius for the closed outer edges (cap top, can bottom).
+ *                         Set to 0 for sharp corners. Should not exceed wall_thickness,
+ *                         cap_wall_thickness, or floor_thickness.
  *  - fn:                  Circle resolution in steps per 360°
  *  - fit_tolerance:       Gap between mating parts (printer dependent)
  *
@@ -72,6 +75,7 @@ module dose(
     thread_turns      = 4,
     cut_thread_percent = 10,
     smooth_sides      = true,
+    corner_radius     = 1.5,
     fn                = 128,
     fit_tolerance     = 0.5
 ) {
@@ -86,6 +90,7 @@ module dose(
     $d_thread_turns    = thread_turns;
     $d_cut_pct         = cut_thread_percent;
     $d_smooth_sides    = smooth_sides;
+    $d_corner_radius   = corner_radius;
     $d_fn              = fn;
     $d_fit             = fit_tolerance;
 
@@ -174,10 +179,11 @@ module _dose_can() {
 
     difference() {
         union() {
-            cylinder(
+            _dose_rounded_cylinder(
                 r  = $d_inner_diameter / 2 + $d_wall,
                 h  = $d_inner_height + $d_floor,
-                $fn = $d_fn
+                cr = $d_corner_radius,
+                round_bottom = true
             );
 
             // Exterior thread
@@ -256,13 +262,14 @@ module _dose_cap() {
 
     // Cap body with interior thread pocket
     difference() {
-        cylinder(
+        _dose_rounded_cylinder(
             r  = $d_inner_diameter / 2
                  + $d_thread_thick
                  + $d_wall
                  + $d_cap_wall,
             h  = $d_thread_height + $d_floor,
-            $fn = $d_fn
+            cr = $d_corner_radius,
+            round_bottom = true
         );
         translate([0, 0, $d_floor])
         cylinder(
@@ -317,6 +324,37 @@ module _dose_side_support(r, w, h) {
     rotate_extrude($fn = $d_fn)
     translate([r, 0, 0])
     polygon([[0, 0], [w, h], [0, h]]);
+}
+
+/*
+ * Cylinder with optional fillets on the outer top/bottom edges.
+ * round_bottom rounds the outer edge at z = 0.
+ * round_top    rounds the outer edge at z = h.
+ */
+module _dose_rounded_cylinder(r, h, cr = 0, round_bottom = false, round_top = false) {
+    if (cr <= 0 || (!round_bottom && !round_top)) {
+        cylinder(r = r, h = h, $fn = $d_fn);
+    } else {
+        arc_steps = max(8, floor($d_fn / 4));
+        bottom_arc = [
+            for (i = [0 : arc_steps])
+            let (a = 270 + (i / arc_steps) * 90)
+            [(r - cr) + cr * cos(a), cr + cr * sin(a)]
+        ];
+        top_arc = [
+            for (i = [0 : arc_steps])
+            let (a = (i / arc_steps) * 90)
+            [(r - cr) + cr * cos(a), (h - cr) + cr * sin(a)]
+        ];
+        profile = concat(
+            [[0, 0]],
+            round_bottom ? bottom_arc : [[r, 0]],
+            round_top    ? top_arc    : [[r, h]],
+            [[0, h]]
+        );
+        rotate_extrude($fn = $d_fn)
+            polygon(profile);
+    }
 }
 
 /**
