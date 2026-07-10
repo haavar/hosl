@@ -232,12 +232,13 @@ module _dose_can() {
             }
         }
 
-        // Interior hollow
+        // Interior hollow (rounded at the floor for a filleted inside corner)
         translate([0, 0, $d_floor])
-        cylinder(
-            r   = $d_inner_diameter / 2,
-            h   = $d_inner_height + tol,
-            $fn = $d_fn
+        _dose_rounded_cylinder(
+            r  = $d_inner_diameter / 2,
+            h  = $d_inner_height + tol,
+            cr = $d_corner_radius,
+            round_bottom = true
         );
 
         // Interior rim clearance
@@ -272,10 +273,11 @@ module _dose_cap() {
             round_bottom = true
         );
         translate([0, 0, $d_floor])
-        cylinder(
-            r   = $d_inner_diameter / 2 + $d_wall + $d_thread_thick + $d_fit,
-            h   = $d_thread_height + tol,
-            $fn = $d_fn
+        _dose_rounded_cylinder(
+            r  = $d_inner_diameter / 2 + $d_wall + $d_thread_thick + $d_fit,
+            h  = $d_thread_height + tol,
+            cr = $d_corner_radius,
+            round_bottom = true
         );
     }
 
