@@ -236,18 +236,23 @@ dose(inner_diameter=20, inner_height=80)
 
 Most libraries should be imported with `use <library.scad>`. This imports module and function definitions without executing any top-level code.
 
-However, if a library contains `import()` calls (for SVG or STL files), use `include <library.scad>` instead. OpenSCAD resolves `import()` paths relative to the file that *contains* the call. With `use`, that is the library file — so the SVG files would need to live alongside the library. With `include`, the library code is inlined into the project file, so `import()` paths resolve relative to the project file, which is where the assets live.
+However, `include <library.scad>` is required instead in two cases:
+
+- **The library contains `import()` calls** (for SVG or STL files). OpenSCAD resolves `import()` paths relative to the file that *contains* the call. With `use`, that is the library file — so the SVG files would need to live alongside the library. With `include`, the library code is inlined into the project file, so `import()` paths resolve relative to the project file, which is where the assets live.
+- **The library bundles a dependency's `include` on the caller's behalf** (e.g. `include <BOSL2/std.scad>` inside the library itself, so consumers don't need to include BOSL2 separately). `use` only imports module/function definitions — it skips top-level statements, so a bundled `include` would silently never run and the dependency's symbols would be undefined. If a library instead expects the caller to `use` it, it must NOT execute top-level code (no bundled includes, no bare `$fn = ...` etc.), since `use` won't run any of it and the caller may still expect ordinary special variables like `$fn` to be untouched.
 
 ```scad
 // For libraries with import() calls (e.g. SVG-based dice):
 include <dice.scad>
 
-// For libraries without import() calls:
+// For libraries that bundle their own dependencies:
+include <project-box.scad>
+
+// For libraries without import() calls, that expect the caller to bring dependencies:
 use <dose.scad>
-use <project-box.scad>
 ```
 
-Note this in the library's header comment so users know which to use.
+Note this in the library's header comment so users know which to use, and — if `use` — which dependencies they need to include themselves first.
 
 ---
 
