@@ -1,4 +1,10 @@
-
+    projectBox(50, 100, 30) {
+        projectBoxTop();
+        translate([100, 0, 0])
+        projectBoxBottom();
+        pegs(10, 20, board=[12, 22, 5]);
+   }
+   
 /*
  * Parametric Project Box Library
  * hosl
@@ -11,11 +17,6 @@
  *
  * Usage:
  *   include <hosl/project-box.scad>
- *
- *   This library must be imported with `include`, not `use` — it pulls in
- *   BOSL2/std.scad on the caller's behalf as top-level code, which `use`
- *   would silently skip (leaving BOSL2 symbols undefined). If you use `use`
- *   instead, you must also `include <BOSL2/std.scad>` yourself first.
  *
  *   projectBox(85, 125, 30) {
  *       projectBoxTop();
@@ -79,7 +80,7 @@ module projectBoxTop() {
         difference() {
             _box(x=$pb_x, y=$pb_y, z=$pb_lid_z, wallThickness=$pb_side_t , pegD=$pb_insert_d);
             
-            translate([0, 0, $pb_lid_z-$pb_lip_h]) _lip(height=$pb_lip_h+$pb_lip_play, thickness=$pb_lip_w+$pb_lip_play);   
+            translate([0, 0, $pb_lid_z-($pb_lip_h+$pb_lip_play)/2]) _lip(rect([$pb_lip_w+$pb_lip_play, $pb_lip_h+$pb_lip_play]));   
             
             // screw holes
             xcopies(n=2, spacing=$pb_x-$pb_insert_d) ycopies(n=2, spacing=$pb_y-$pb_insert_d) 
@@ -98,14 +99,15 @@ module projectBoxBottom() {
                 // holes
             xcopies(n=2, spacing=$pb_x-$pb_insert_d) ycopies(n=2, spacing=$pb_y-$pb_insert_d) translate([0,0,$pb_z-$pb_lid_z]) cylinder(d=$pb_insert_d, h=$pb_insert_l, anchor=TOP);  
         }
-    color("orange") translate([0, 0, $pb_z-$pb_lid_z]) _lip(height=$pb_lip_h, thickness=$pb_lip_w);
+    color("orange") translate([0, 0, $pb_z-$pb_lid_z + $pb_lip_h/2]) _lip(rect([$pb_lip_w, $pb_lip_h]));
     children();
 }
 
-module _lip(height, thickness) {
+module _lip(profile) {
 
 
     path = turtle([
+       
         "move", $pb_x/2 - $pb_inner_rounding - $pb_side_t/2 - $pb_insert_d, 
         "arcleft", $pb_inner_rounding, 90,
         "move", $pb_side_t/2 -$pb_inner_rounding + $pb_insert_d/2,
@@ -115,7 +117,11 @@ module _lip(height, thickness) {
         "move", $pb_y/2 -$pb_inner_rounding - $pb_side_t/2 - $pb_insert_d
     ]);
     
-    linear_extrude(height) xflip_copy() yflip_copy() translate([0, -($pb_y+$pb_side_t)/2, 0]) stroke(path, thickness, endcaps="butt");
+    // the 0.001 is to close a gap that I think comes from a rounding error
+    xflip_copy() yflip_copy() 
+            translate([-0.001, -($pb_y+$pb_side_t)/2+0.001, 0]) 
+               path_sweep(profile, path);
+
 }
 
 
