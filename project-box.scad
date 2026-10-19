@@ -1,10 +1,3 @@
-    projectBox(50, 100, 30) {
-        projectBoxTop();
-        translate([100, 0, 0])
-        projectBoxBottom();
-        pegs(10, 20, board=[12, 22, 5]);
-   }
-   
 /*
  * Parametric Project Box Library
  * hosl
@@ -167,11 +160,12 @@ module _box(x, y, z, wallThickness=$pb_side_t, floorThickness=$pb_floor_t, pegD,
  *      // 38x51mm board (e.g. Arduino Nano), with board preview
  *      pegs(31.8, 44.5, board=[38.1, 50.8, 10]);
  */
-module pegs(x, y, d=5, h=6, hole_d=2.9, hole_len=5, board=[]) {
+module pegs(x, y, d=5, x_offset=0, y_offset=0, h=6, hole_d=2.9, hole_len=5, board=[]) {
     if (len(board) == 3)
         translate([0, 0, h])
             %cuboid(board, anchor=BOTTOM);
-    grid_copies(spacing=[x, y])
+    
+    translate([x_offset, y_offset, 0]) grid_copies(spacing=[x, y])
         difference() {
             cylinder(d=d, h=h);
             translate([0, 0, h - hole_len])
