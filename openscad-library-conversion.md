@@ -247,9 +247,10 @@ include <dice.scad>
 
 // For libraries that bundle their own dependencies:
 include <project-box.scad>
+include <dose.scad>
 
 // For libraries without import() calls, that expect the caller to bring dependencies:
-use <dose.scad>
+use <mylib.scad>
 ```
 
 Note this in the library's header comment so users know which to use, and — if `use` — which dependencies they need to include themselves first.
