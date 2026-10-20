@@ -36,6 +36,8 @@
  *       corner_radius=3.5,               // interior; keep at or below 4 so bins fit
  *       block_clearance=0.3,             // shrink each lid block per side (37.2 mm -> 36.6 mm)
  *       hinge_relief=1,                  // trim hinge-side block faces so the lid can swing in; 0 = off
+ *       length_margin=0.5,               // extra interior length per end, lid and base
+ *       lid_front_relief=0.5,            // also cut this much from the lid's front wall inside; 0 = off
  *       block_frame=3,                   // hollow lid blocks with a frame this wide; 0 = solid
  *       block_frame_chamfer=1.5,         // inner chamfer on the frame tip, mm
  *       edge_chamfer_proportion=0.4,
@@ -128,11 +130,11 @@ module _gf_pocket(profile, inset = 0, slope = 0, rmin = 0.01) {
     }
 }
 
-module _gf_pockets(gx, gy, profile, inset = 0, relief = 0, rmin = 0.01) {
+module _gf_pockets(gx, gy, profile, inset = 0, relief = 0, rmin = 0.01, margin = 0) {
     for (ix = [0 : gx - 1], iy = [0 : gy - 1])
         translate([(ix - (gx - 1) / 2) * gf_pitch, (iy - (gy - 1) / 2) * gf_pitch, 0])
         _gf_pocket(profile, inset,
-            relief * _gf_interp(gf_relief_slopes, (gy - 1 - iy) * gf_pitch + gf_pitch / 2), rmin);
+            relief * _gf_interp(gf_relief_slopes, (gy - 1 - iy) * gf_pitch + gf_pitch / 2 + margin), rmin);
 }
 
 // Frame blocks (block_frame > 0): the lid block is hollowed from its tip, leaving a
@@ -162,40 +164,61 @@ function _gf_cavity_profile(profile, w, c, d_roof) = (
     )
 );
 
+// Front relief starts this deep below the lid's outside face: bin tops sit about
+// 6.3 mm below it, so 5.5 leaves a margin
+gf_front_relief_start = 5.5;
+
 // Base: ribs plate with foot pockets cut into it and the floor.
 // Lid: the reference lid is the inverse -- solid blocks hang from the ceiling
 // (they drop into the openings at the top of the bins) with grooves between.
-module _gf_body(part, gx, gy, profile, corner_radius, block_clearance = 0, hinge_relief = 0, block_frame = 0, frame_chamfer = 1.5) {
+module _gf_body(part, gx, gy, profile, corner_radius, block_clearance = 0, hinge_relief = 0, block_frame = 0, frame_chamfer = 1.5, front_relief = 0, margin = 0) {
     if (part == "bottom") {
         difference() {
             union() {
                 rbox_bottom();
-                _gf_grid_solid(gx, gy, profile, corner_radius);
+                _gf_grid_solid(gx, gy, profile, corner_radius, margin);
             }
             _gf_pockets(gx, gy, profile);
         }
     } else {
         union() {
-            rbox_top();
+            // Lid front relief: the reference lid is 1 mm roomier than the base at the
+            // latch side (inner face at -127 mm against -126 mm on a 7x6 box). Bins stand
+            // about 6.6 mm above the base rim, so the front row would otherwise touch the
+            // lid wall. The cut is the interior shape moved forward by front_relief, from
+            // just below the bin tops to the rim, so the front corners are relieved too.
+            // It narrows the cut by 0.05 mm per side so it never shares a face with the
+            // side walls, and leaves the blocks alone.
+            difference() {
+                rbox_top();
+                if (front_relief > 0) {
+                    translate([0, -front_relief, gf_front_relief_start])
+                    linear_extrude(gf_lid_outer_height + 1 - gf_front_relief_start)
+                    offset(r = corner_radius)
+                    square([gx * gf_pitch - corner_radius * 2 - 0.1,
+                            gy * gf_pitch + margin * 2 - corner_radius * 2], center = true);
+                }
+            }
             if (block_frame > 0) {
                 difference() {
-                    _gf_pockets(gx, gy, profile, block_clearance, hinge_relief);
+                    _gf_pockets(gx, gy, profile, block_clearance, hinge_relief, 0.01, margin);
                     _gf_pockets(gx, gy,
                         _gf_cavity_profile(profile, block_frame, min(frame_chamfer, block_frame - gf_frame_min_flat), $b_wall_thickness),
-                        block_clearance, hinge_relief, gf_frame_inner_radius);
+                        block_clearance, hinge_relief, gf_frame_inner_radius, margin);
                 }
             } else {
-                _gf_pockets(gx, gy, profile, block_clearance, hinge_relief);
+                _gf_pockets(gx, gy, profile, block_clearance, hinge_relief, 0.01, margin);
             }
         }
     }
 }
 
-module _gf_grid_solid(gx, gy, profile, corner_radius) {
+// Rib plate fills the whole interior (length grows by margin on each side)
+module _gf_grid_solid(gx, gy, profile, corner_radius, margin = 0) {
     h = profile[len(profile) - 1][0];
     linear_extrude(h)
     offset(r = corner_radius)
-    square([gx * gf_pitch - corner_radius * 2, gy * gf_pitch - corner_radius * 2], center = true);
+    square([gx * gf_pitch - corner_radius * 2, gy * gf_pitch + margin * 2 - corner_radius * 2], center = true);
 }
 
 // Latch fit. The draw latch lever hangs about 31 mm below its pivot, which on a
@@ -242,6 +265,16 @@ function _gf_clip_sep(base_outer, sep, lid_outer) = (
  *    solid. Not test-printed.
  *  - block_frame_chamfer: size of the 45 degree chamfer on the inner tip edge of
  *    the frame, in mm (default 1.5). Limited so 0.8 mm of flat stays on the tip.
+ *  - length_margin: mm added to the interior length on the front and the back, for
+ *    both lid and base (default 0.5), so the box is 2 * length_margin longer. The
+ *    grid stays centred, so bins still sit in the same pockets; this only gives the
+ *    bins room away from the front and rear walls.
+ *  - lid_front_relief: mm cut from the inside of the lid's front (latch side) wall
+ *    where the bins reach (default 0.5). The reference lid has 1.0 mm more room than
+ *    its base at the front. Together with length_margin the front clearance is
+ *    0.25 + 0.5 + 0.5 = 1.25 mm, the same as the reference, and the lid front wall
+ *    stays 1.9 mm thick. For a full-thickness wall use length_margin=1.0 and
+ *    lid_front_relief=0. 0 = off.
  *  - latch_type: "auto" (default) uses the draw latch when it fits inside the
  *    box and otherwise the clip latch, with latch_screw_separation reduced just
  *    enough that it stays inside (about 8U or taller for the draw latch). "draw"
@@ -256,6 +289,8 @@ module grugged(
     block_clearance = 0.3,
     hinge_relief = 1,
     block_frame = 3,
+    length_margin = 0.5,
+    lid_front_relief = 0.5,
     block_frame_chamfer = 1.5,
     edge_chamfer_proportion = 0.4,
     lip_seal_type = "wedge",
@@ -295,7 +330,7 @@ module grugged(
 
     rbox(
         width = gx * gf_pitch,
-        length = gy * gf_pitch,
+        length = gy * gf_pitch + length_margin * 2,
         bottom_height = base_inner,
         top_height = lid_inner,
         corner_radius = corner_radius,
@@ -320,7 +355,7 @@ module grugged(
         size_tolerance = size_tolerance
     )
     rbox_part(part) {
-        if (grid) _gf_body("bottom", gx, gy, gf_base_profile, corner_radius); else rbox_bottom();
-        if (grid) _gf_body("top", gx, gy, gf_lid_profile, corner_radius, block_clearance, hinge_relief, block_frame, block_frame_chamfer); else rbox_top();
+        if (grid) _gf_body("bottom", gx, gy, gf_base_profile, corner_radius, margin = length_margin); else rbox_bottom();
+        if (grid) _gf_body("top", gx, gy, gf_lid_profile, corner_radius, block_clearance, hinge_relief, block_frame, block_frame_chamfer, lid_front_relief, length_margin); else rbox_top();
     }
 }
